@@ -1,0 +1,27 @@
+input:
+  http_server:
+    address: 0.0.0.0:8080
+    path: /temporal
+
+pipeline:
+  processors:
+    - mapping: |
+        root = this.without("@task_queue", "@workflow_type", "@workflow_id")
+        root."@metadata" = @
+        meta task_queue = @."task_queue".or(this."@task_queue").or("example")
+        meta workflow_id = @."workflow_id".or(this."@workflow_id").or("example/%s".format(uuid_v4()))
+        meta workflow_type = @."workflow_type".or(this."@workflow_type").or("example")
+    - log:
+        message: '${! content().string() }'
+        fields_mapping: |
+          task_queue = @.task_queue
+          workflow_id = @.workflow_id
+          workflow_type = @.workflow_type
+
+output:
+  temporal_workflow:
+    address: localhost:7233
+    task_queue: '${! @.task_queue }'
+    workflow_id: '${! @.workflow_id }'
+    workflow_type: '${! @.workflow_type }'
+    
