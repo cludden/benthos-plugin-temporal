@@ -1,4 +1,4 @@
-package temporal
+package connect
 
 import (
 	"context"

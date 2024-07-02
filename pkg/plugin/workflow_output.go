@@ -1,4 +1,4 @@
-package benthosplugintemporal
+package plugin
 
 import (
 	"context"
@@ -25,9 +25,7 @@ type (
 		InterpolatedString interface {
 			TryString(Message) (string, error)
 		},
-		Mapping interface {
-			Query(any) (any, error)
-		},
+		Mapping BloblangMapping,
 		Message interface {
 			AsBytes() ([]byte, error)
 			AsStructured() (any, error)
@@ -54,9 +52,7 @@ type (
 		InterpolatedString interface {
 			TryString(Message) (string, error)
 		},
-		Mapping interface {
-			Query(any) (any, error)
-		},
+		Mapping BloblangMapping,
 		Message interface {
 			AsBytes() ([]byte, error)
 			AsStructured() (any, error)
@@ -65,117 +61,24 @@ type (
 	] func(*WorkflowOutput[InterpolatedString, Mapping, Message]) error
 )
 
-func NewWorkflowOutput[
-	ParsedConfig interface {
-		Contains(...string) bool
-		FieldBloblang(...string) (Mapping, error)
-		FieldBool(...string) (bool, error)
-		FieldInt(...string) (int, error)
-		FieldInterpolatedString(...string) (InterpolatedString, error)
-		FieldString(...string) (string, error)
-	},
-	Resources any,
-	InterpolatedString interface {
-		TryString(Message) (string, error)
-	},
-	Mapping interface {
-		Query(any) (any, error)
-	},
-	Message interface {
-		AsBytes() ([]byte, error)
-		AsStructured() (any, error)
-		BloblangQuery(Mapping) (Message, error)
-	},
-](conf ParsedConfig, mgr Resources, opts ...WorkflowOutputOptions[InterpolatedString, Mapping, Message]) (o *WorkflowOutput[InterpolatedString, Mapping, Message], maxInFlight int, err error) {
-	o = &WorkflowOutput[InterpolatedString, Mapping, Message]{}
-	for _, opt := range opts {
-		if err := opt(o); err != nil {
-			return nil, 0, err
-		}
-	}
-	if o.clientOpts.HostPort, err = conf.FieldString("address"); err != nil {
-		return nil, 0, err
-	}
-	if o.dc == nil {
-		o.dc = converter.GetDefaultDataConverter()
-	}
-	if conf.Contains("codec_endpoint") {
-		var codecOpts converter.RemotePayloadCodecOptions
-		if codecOpts.Endpoint, err = conf.FieldString("codec_endpoint"); err != nil {
-			return nil, 0, err
-		}
-		if conf.Contains("codec_auth") {
-			codecAuth, err := conf.FieldString("codec_auth")
-			if err != nil {
-				return nil, 0, err
-			}
-			codecOpts.ModifyRequest = func(r *http.Request) error {
-				r.Header.Set("Authorization", codecAuth)
-				return nil
-			}
-		}
-		o.dc = converter.NewCodecDataConverter(o.dc, converter.NewRemotePayloadCodec(codecOpts))
-	}
-	if o.detach, err = conf.FieldInterpolatedString("detach"); err != nil {
-		return nil, 0, err
-	}
-	if conf.Contains("input_proto_message_name") {
-		o.inputMessageTypeExists = true
-		if o.inputMessageType, err = conf.FieldInterpolatedString("input_proto_message_name"); err != nil {
-			return nil, 0, err
-		}
-	}
-	if conf.Contains("mapping") {
-		o.mappingExists = true
-		if o.mapping, err = conf.FieldBloblang("mapping"); err != nil {
-			return nil, 0, err
-		}
-	}
-	if maxInFlight, err = conf.FieldInt("max_in_flight"); err != nil {
-		return nil, 0, err
-	}
-	if o.clientOpts.Namespace, err = conf.FieldString("namespace"); err != nil {
-		return nil, 0, err
-	}
-	if conf.Contains("search_attributes") {
-		o.searchAttributesExists = true
-		if o.searchAttributes, err = conf.FieldBloblang("search_attributes"); err != nil {
-			return nil, 0, err
-		}
-	}
-	if o.taskQueue, err = conf.FieldInterpolatedString("task_queue"); err != nil {
-		return nil, 0, err
-	}
-	if o.clientOpts.ConnectionOptions.TLS, err = parseTLS[ParsedConfig, InterpolatedString, Mapping, Message](conf); err != nil {
-		return nil, 0, err
-	}
-	if o.workflowID, err = conf.FieldInterpolatedString("workflow_id"); err != nil {
-		return nil, 0, err
-	}
-	if o.workflowType, err = conf.FieldInterpolatedString("workflow_type"); err != nil {
-		return nil, 0, err
-	}
-	return o, maxInFlight, nil
-}
-
-func WorkflowOutputConfig[
-	ConfigSpec interface {
-		Fields(...Field) ConfigSpec
-		Summary(string) ConfigSpec
-	},
+func NewWorkflowOutputConfig[
 	Field interface {
 		Default(any) Field
 		Description(string) Field
 		Optional() Field
 	},
+	ConfigSpec interface {
+		Summary(string) ConfigSpec
+		Fields(...Field) ConfigSpec
+	},
 	FieldProvider interface {
-		NewBloblangField(string) Field
 		NewBoolField(string) Field
+		NewBloblangField(string) Field
 		NewIntField(string) Field
-		NewObjectField(string, ...Field) Field
 		NewStringField(string) Field
 		NewInterpolatedStringEnumField(string, ...string) Field
 		NewInterpolatedStringField(string) Field
+		NewObjectField(string, ...Field) Field
 	},
 ](conf ConfigSpec, fields FieldProvider) ConfigSpec {
 	return conf.Summary("Executes a Temporal workflow for each message as input.").
@@ -241,6 +144,97 @@ func WorkflowOutputConfig[
 			fields.NewInterpolatedStringField("workflow_type").
 				Description("Workflow type name"),
 		)
+}
+
+func NewWorkflowOutput[
+	InterpolatedString interface {
+		TryString(Message) (string, error)
+	},
+	Mapping BloblangMapping,
+	Message interface {
+		AsBytes() ([]byte, error)
+		AsStructured() (any, error)
+		BloblangQuery(Mapping) (Message, error)
+	},
+	ParsedConfig interface {
+		Contains(...string) bool
+		FieldBloblang(...string) (Mapping, error)
+		FieldBool(...string) (bool, error)
+		FieldInt(...string) (int, error)
+		FieldInterpolatedString(...string) (InterpolatedString, error)
+		FieldString(...string) (string, error)
+	},
+	Resources any,
+](conf ParsedConfig, mgr Resources, opts ...WorkflowOutputOptions[InterpolatedString, Mapping, Message]) (o *WorkflowOutput[InterpolatedString, Mapping, Message], maxInFlight int, err error) {
+	o = &WorkflowOutput[InterpolatedString, Mapping, Message]{}
+	for _, opt := range opts {
+		if err := opt(o); err != nil {
+			return nil, 0, err
+		}
+	}
+	if o.clientOpts.HostPort, err = conf.FieldString("address"); err != nil {
+		return nil, 0, err
+	}
+	if o.dc == nil {
+		o.dc = converter.GetDefaultDataConverter()
+	}
+	if conf.Contains("codec_endpoint") {
+		var codecOpts converter.RemotePayloadCodecOptions
+		if codecOpts.Endpoint, err = conf.FieldString("codec_endpoint"); err != nil {
+			return nil, 0, err
+		}
+		if conf.Contains("codec_auth") {
+			codecAuth, err := conf.FieldString("codec_auth")
+			if err != nil {
+				return nil, 0, err
+			}
+			codecOpts.ModifyRequest = func(r *http.Request) error {
+				r.Header.Set("Authorization", codecAuth)
+				return nil
+			}
+		}
+		o.dc = converter.NewCodecDataConverter(o.dc, converter.NewRemotePayloadCodec(codecOpts))
+	}
+	if o.detach, err = conf.FieldInterpolatedString("detach"); err != nil {
+		return nil, 0, err
+	}
+	if conf.Contains("input_proto_message_name") {
+		o.inputMessageTypeExists = true
+		if o.inputMessageType, err = conf.FieldInterpolatedString("input_proto_message_name"); err != nil {
+			return nil, 0, err
+		}
+	}
+	if conf.Contains("mapping") {
+		o.mappingExists = true
+		if o.mapping, err = conf.FieldBloblang("mapping"); err != nil {
+			return nil, 0, err
+		}
+	}
+	if maxInFlight, err = conf.FieldInt("max_in_flight"); err != nil {
+		return nil, 0, err
+	}
+	if o.clientOpts.Namespace, err = conf.FieldString("namespace"); err != nil {
+		return nil, 0, err
+	}
+	if conf.Contains("search_attributes") {
+		o.searchAttributesExists = true
+		if o.searchAttributes, err = conf.FieldBloblang("search_attributes"); err != nil {
+			return nil, 0, err
+		}
+	}
+	if o.taskQueue, err = conf.FieldInterpolatedString("task_queue"); err != nil {
+		return nil, 0, err
+	}
+	if o.clientOpts.ConnectionOptions.TLS, err = parseTLS[InterpolatedString, Mapping, Message, ParsedConfig](conf); err != nil {
+		return nil, 0, err
+	}
+	if o.workflowID, err = conf.FieldInterpolatedString("workflow_id"); err != nil {
+		return nil, 0, err
+	}
+	if o.workflowType, err = conf.FieldInterpolatedString("workflow_type"); err != nil {
+		return nil, 0, err
+	}
+	return o, maxInFlight, nil
 }
 
 func (o *WorkflowOutput[InterpolatedString, Mapping, Message]) Close(ctx context.Context) error {
@@ -323,6 +317,15 @@ func (o *WorkflowOutput[InterpolatedString, Mapping, Message]) Write(ctx context
 }
 
 func parseTLS[
+	InterpolatedString interface {
+		TryString(Message) (string, error)
+	},
+	Mapping BloblangMapping,
+	Message interface {
+		AsBytes() ([]byte, error)
+		AsStructured() (any, error)
+		BloblangQuery(Mapping) (Message, error)
+	},
 	ParsedConfig interface {
 		Contains(...string) bool
 		FieldBloblang(...string) (Mapping, error)
@@ -330,14 +333,6 @@ func parseTLS[
 		FieldInt(...string) (int, error)
 		FieldInterpolatedString(...string) (InterpolatedString, error)
 		FieldString(...string) (string, error)
-	},
-	InterpolatedString interface {
-		TryString(Message) (string, error)
-	},
-	Mapping any,
-	Message interface {
-		AsBytes() ([]byte, error)
-		AsStructured() (any, error)
 	},
 ](conf ParsedConfig) (cfg *tls.Config, err error) {
 	cfg = &tls.Config{}

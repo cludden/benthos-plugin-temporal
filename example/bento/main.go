@@ -8,7 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/cludden/benthos-plugin-temporal/pkg/bento"
+	_ "github.com/cludden/benthos-plugin-temporal/pkg/bento/authenticate_github_webhook_function"
+	_ "github.com/cludden/benthos-plugin-temporal/pkg/bento/authenticate_slack_request_function"
+	_ "github.com/cludden/benthos-plugin-temporal/pkg/bento/workflow_output"
 	"github.com/oklog/run"
 	_ "github.com/warpstreamlabs/bento/public/components/all"
 	"github.com/warpstreamlabs/bento/public/service"
