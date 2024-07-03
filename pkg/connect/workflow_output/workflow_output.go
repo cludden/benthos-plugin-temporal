@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	if err := service.RegisterOutput(plugin.WorkflowOutputType, plugin.NewWorkflowOutputConfig(service.NewConfigSpec(), &connect.FieldProvider{}), func(conf *service.ParsedConfig, mgr *service.Resources) (service.Output, int, error) {
+	if err := service.RegisterOutput(plugin.WorkflowOutputType, plugin.NewWorkflowOutputConfig(service.NewConfigSpec(), connect.DefaultFieldProvider), func(conf *service.ParsedConfig, mgr *service.Resources) (service.Output, int, error) {
 		return plugin.NewWorkflowOutput(conf, mgr)
 	}); err != nil {
 		panic(fmt.Errorf("error registering %s output: %w", plugin.WorkflowOutputType, err))

@@ -1,8 +1,11 @@
 package connect
 
 import (
-	"github.com/redpanda-data/benthos/v4/public/bloblang"
 	"github.com/redpanda-data/benthos/v4/public/service"
+)
+
+var (
+	DefaultFieldProvider = &FieldProvider{}
 )
 
 type FieldProvider struct{}
@@ -35,8 +38,6 @@ func (fp *FieldProvider) NewStringField(name string) *service.ConfigField {
 	return service.NewStringField(name)
 }
 
-type ParamProvider struct{}
-
-func (pp *ParamProvider) NewStringParam(name string) bloblang.ParamDefinition {
-	return bloblang.NewStringParam(name)
+func MessageBatch(msgs []*service.Message) service.MessageBatch {
+	return service.MessageBatch(msgs)
 }

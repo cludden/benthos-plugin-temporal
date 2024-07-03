@@ -8,9 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/cludden/benthos-plugin-temporal/pkg/connect/authenticate_github_webhook_function"
-	_ "github.com/cludden/benthos-plugin-temporal/pkg/connect/authenticate_slack_request_function"
-	_ "github.com/cludden/benthos-plugin-temporal/pkg/connect/workflow_output"
+	_ "github.com/cludden/benthos-plugin-temporal/pkg/connect/all"
 	"github.com/oklog/run"
 	"github.com/redpanda-data/benthos/v4/public/service"
 	_ "github.com/redpanda-data/connect/public/bundle/free/v4"

@@ -2,7 +2,18 @@
 
 A [Temporal](https://temporal.io) integration for benthos/[redpanda-connect](https://docs.redpanda.com/redpanda-connect/about/)/[bento](https://warpstreamlabs.github.io/bento/).
 
+Easily execute Temporal workflows from:
+
+>  `amqp`, `aws_kinesis`, `aws_s3`, `aws_sqs`, `azure_blob_storage`,
+>  `azure_cosmosdb`, `azure_queue_storage`, `azure_table_storage`, `beanstalkd`, 
+>  `cassandra`, `discord`, `gcp_bigquery_select`, `gcp_cloud_storage`, `gcp_pubsub`, 
+>  `hdfs`, `kafka` , `mongodb`, `mqtt`, `nats`, `nats_jetstream`, `nsq`, `pulsar`, 
+>  `redis_list`, `redis_pubsub`, `redis_scan`, `redis_streams`, `sftp`, `sql`,
+>  `twitter`, `webhooks`, and more!
+
 ## Getting Started
+
+Launch a webhook server for executing dynamic workflows:
 
 1. Import this plugin
   - [Redpanda Connect](https://docs.redpanda.com/redpanda-connect/about/)
@@ -11,7 +22,7 @@ A [Temporal](https://temporal.io) integration for benthos/[redpanda-connect](htt
     package main
 
     import (
-        _ "github.com/cludden/benthos-plugin-temporal/pkg/connect/workflow_output"
+        _ "github.com/cludden/benthos-plugin-temporal/pkg/connect/all"
         "github.com/redpanda-data/benthos/v4/public/service"
         _ "github.com/redpanda-data/connect/public/bundle/free/v4"
     )
@@ -26,7 +37,7 @@ A [Temporal](https://temporal.io) integration for benthos/[redpanda-connect](htt
     package main
 
     import (
-        _ "github.com/cludden/benthos-plugin-temporal/pkg/bento/workflow_output"
+        _ "github.com/cludden/benthos-plugin-temporal/pkg/bento/all"
         _ "github.com/warpstreamlabs/bento/public/components/all"
 	      "github.com/warpstreamlabs/bento/public/service"
     )
@@ -45,7 +56,7 @@ input:
 
 pipeline:
   processors:
-    # extract task_queue, workflow_type, and workflow_id from json payload or query parameters
+    # extract task_queue, workflow_type, and workflow_id from http headers, query parameters, or json payload
     - mapping: |
         root = this.without("@task_queue", "@workflow_type", "@workflow_id")
         root."@metadata" = @
@@ -76,76 +87,62 @@ curl http://localhost:8080/temporal \
   -d '{"@task_queue":"example","@workflow_type":"example","foo":"bar"}' 
 ```
 
+## Examples
+
+See the [example](./example/) directory for complete examples.
+
 ## Resources
 
-### Bloblang Functions
+### Processors
 
-#### authenticate_github_webhook
+#### verify_hmac_sha256
 
-authenticate a github webhook message
+securely verifies an hmac_sha256 signature without leaking timing information
 
 ##### Fields
 
-- payload (`string`) - webhook payload
-- secret (`string`) - webhook secret
-- signature (`string`) - value of `X-Hub-Signature-256` header
+- secret (`<InterpolatedString>`) - hmac secret
+- signature (`<InterpolatedString>`) - signature to verify (excluding any prefix/suffix)
+- string_to_sign (`<Mapping>`) - string to sign
 
 ##### Example
+
+**GitHub Webhook:**
 
 ```yaml
 input:
   http_server:
     path: /post
-    sync_response:
-      status: '${! @.status.or(200) }'
 
 pipeline:
   processors:
-    - switch:
-        - check: '!authenticate_github_webhook(payload: content(), secret: env("GITHUB_SECRET"), signature: meta("X-Hub-Signature-256")).catch(false)'
-          processors:
-            - mapping: meta status = 401
+    - verify_hmac_sha256:
+        secret: '${! env("WEBHOOK_SECRET") }'
+        signature: '${! @."X-Hub-Signature-256".trim_prefix("sha256=") }'
+        string_to_sign: root = content()
 
 output:
-  sync_response: {}
-  processors:
-    - mapping: root = {}
+  reject_errored:
+    sync_response: {}
 ```
 
----
-
-#### authenticate_slack_request
-
-authenticate a slack request
-
-##### Fields
-
-- payload (`<string>`) - request payload
-- timestamp (`<string>`) - value of `X-Slack-Request-Timestamp` header
-- secret (`<string>`) - signing secret
-- signature (`<string>`) - value of `X-Slack-Signature` header
-- grace_period (`[string]`) - duration string containing the maximum allowed clock skew (default: `5s`)
-
-##### Example
+**Slack Request:**
 
 ```yaml
 input:
   http_server:
     path: /post
-    sync_response:
-      status: '${! @.status.or(200) }'
 
 pipeline:
   processors:
-    - switch:
-        - check: '!authenticate_slack_request(payload: content(), timestamp: meta("X-Slack-Request-Timestamp") , secret: env("GITHUB_SECRET"), signature: meta("X-Slack-Signature")).catch(false)'
-          processors:
-            - mapping: meta status = 401
+    - verify_hmac_sha256:
+        secret: '${! env("WEBHOOK_SECRET") }'
+        signature: '${! @."X-Slack-Signature".trim_prefix("v0=") }'
+        string_to_sign: root = "v0:%s:%s".format(@."X-Slack-Request-Timestamp", content())
 
 output:
-  sync_response: {}
-  processors:
-    - mapping: root = {}
+  reject_errored:
+    sync_response: {}
 ```
 
 ### Outputs
