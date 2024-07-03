@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/redpanda-data/benthos/v4/public/service"
-	_ "github.com/redpanda-data/connect/public/bundle/free/v4"
 	"github.com/stretchr/testify/require"
 	"go.temporal.io/api/filter/v1"
 	"go.temporal.io/api/workflowservice/v1"
